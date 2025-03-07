@@ -6,6 +6,7 @@ import math
 import numpy as np
 import pandas as pd
 import riskfolio as rf
+import matplotlib.pyplot as plt
 
 from state import State, AgentState
 from langchain_anthropic import ChatAnthropic
@@ -39,10 +40,9 @@ def financial_advisor_tool(state: AgentState) -> AgentState:
     # if sum(1 for msg in filtered_messages if isinstance(msg, AIMessage)) >= 5:
     #     return {"messages": filtered_messages, "next": END}
     response = llm.invoke(filtered_messages)
-    print("🚀financial_advisor_tool", response)
 
     filtered_messages.append(response)
-
+    print("🚀financial_advisor_tool", response)
     if hasattr(response, "tool_calls") and response.tool_calls:
         for tool_call in response.tool_calls:
             tool_name = tool_call.function.name
@@ -56,7 +56,7 @@ def financial_advisor_tool(state: AgentState) -> AgentState:
 
     return {"messages": filtered_messages}
 
-@tool
+# @tool
 def build_portfolio(risk_tolerance: str, investment_amount: float, investment_horizon: int, goals: List[str]) -> str:
     
     """
@@ -71,6 +71,7 @@ def build_portfolio(risk_tolerance: str, investment_amount: float, investment_ho
     Returns:
         str: A JSON string representing the portfolio allocation.
     """
+    print("🚀financial_advisor_tool", risk_tolerance)
     portfolio = {
         "low": {"bonds": 0.60, "stocks": 0.30, "cash": 0.10},
         "medium": {"bonds": 0.40, "stocks": 0.50, "cash": 0.10},
@@ -88,11 +89,11 @@ def build_portfolio(risk_tolerance: str, investment_amount: float, investment_ho
         "expected_annual_return": {"low": "3-5%", "medium": "5-8%", "high": "8-12%"}.get(risk_tolerance.lower(), "5-8%"),
     }, indent=2)
 
-# financial_tool = Tool(
-#     name="build_portfolio",
-#     description="Build an investment portfolio based on client parameters",
-#     func=build_portfolio
-# )
+financial_tool = Tool(
+    name="build_portfolio",
+    description="Build an investment portfolio based on client parameters",
+    func=build_portfolio
+)
 
 
 
@@ -113,15 +114,16 @@ def portfolio_manager_tool(state: AgentState):
 
     messages = state["messages"]
     # Initialize the LLM with the provided API key
+
     llm = initialize_llm(api_key)
     system_content = ("You are a helpful portfolio manager."
-                      "You help clients build investment portfolios based on their allocations like percentages of stocks, bonds, real estate etc,."
-                      "Use the portfolio optimization function to optimize portfolio."
+                      "You help clients can optimize their portfolios based on allocations."
+                      "Use the portfolio_optimization function to optimize portfolio."
                       "Do not show python code in your reply."
                       "Don't make disclaimer!" )
 
     # Extract last user message (expected to contain allocation)
-    filtered_messages = messages[-1].content
+    filtered_messages = messages
     filtered_messages = [HumanMessage(content=system_content)] + filtered_messages
     if len(filtered_messages) == 1:
         filtered_messages.append(HumanMessage(content="Hello, I have to optimize my financial portfolio with given allocations."))
@@ -136,47 +138,81 @@ def portfolio_manager_tool(state: AgentState):
 
             # Call the original build_portfolio tool
             tool_result = portfolio_optimization(**tool_arguments)
-            filtered_messages.append(HumanMessage(content=f"Please show Tool Result as a table if possible or other pretty method. Tool Result: {tool_result}"))
+            print("🚀portfolio_manager_tool", tool_result)
+            filtered_messages.append(AIMessage(content=f" Tool Result: {tool_result}"))
             return {"messages": filtered_messages}
     return {"messages": filtered_messages}
 
-@tool
-def portfolio_optimization(stocks: str, bonds: str, real_estate: str) -> str:
-    """Process user-provided allocation and generate a chart."""
-    # Define base constraints
+# @tool
+def portfolio_optimization(stocks: float, bonds: float, international_developed_markets: float, international_emerging_markets: float, cryptocurrency: float) -> str:
+    """
+    Generate portfolio constraints based on asset class, allocation strategy, liquidity levels, covariance matrix, and expected returns.
+    And optimize the portfolio based on the constraints by using riskfolio.
+    
+    Args:
+        stocks (float): The percentage of the portfolio allocated to stocks.
+        bonds (float): The percentage of the portfolio allocated to bonds.
+        international_developed_markets (float): The percentage of the portfolio allocated to international developed markets.
+        international_emerging_markets (float): The percentage of the portfolio allocated to international emerging markets.
+        cryptocurrency (float): The percentage of the portfolio allocated to cryptocurrency.
+
+    Returns:
+        str: A JSON string representing the optimized portfolio data.
+
+    """
     constraints = []
-    
-    # Apply class-based allocation constraints
-    
-    constraints.append(["FALSE", "Classes", "Class 1", "Equity", "<=", stocks])
+    asset_data = pd.DataFrame({
+        "Asset Class": ["Equity", "Fixed Income", "Cryptocurrency", "International Developed", "International Emerging Market"],
+        "Liquidity": ["High", "Medium", "Low", "Medium", "High"]
+    })
 
-    constraints.append(["FALSE", "Classes", "Class 1", "Fixed Income", "<=", bonds])
 
-    constraints.append(["FALSE", "Classes", "Class 1", "Real Estate", "<=", real_estate])
-
-    #Apply specific asset constraints
-    constraints += [
-        ["FALSE", "Assets", "", "Cryptocurrency", "<=", 0.05],
-        ["FALSE", "Assets", "", "International Developed", "<=", 0.05],
-        ["FALSE", "Assets", "", "International Emerging Market", "<=", 0.05],
-        ["FALSE", "Classes", "Liquidity", "Low", ">=", 0.6],
-        ["FALSE", "All Assets", "", "", ">=", 0.02],
-    ]
+    # Determine liquidity strategy dynamically
+    high_liquidity_assets = asset_data[asset_data['Liquidity'].isin(['High', 'Medium'])]
+    low_liquidity_assets = asset_data[asset_data['Liquidity'] == 'Low']
+    liquidity_condition = 'high' if len(high_liquidity_assets) > len(low_liquidity_assets) else 'low'
     
-    # Ensure TLT has at least 40% of Equity allocation
+    # Define base constraints using allocation strategy
+    base_constraints = {
+        'Equity': stocks,
+        'Fixed Income': bonds,
+        'International Developed': international_developed_markets,
+        'International Emerging Market': international_emerging_markets,
+        'Cryptocurrency': cryptocurrency if liquidity_condition == 'low' else None,
+    }
+    asset_class_cov = pd.read_csv(r'CMA - Cov.csv', header=None)
+    asset_class_mu = pd.read_csv(r'CMA - Mu.csv', header=None)
+    
+    # Adjust constraints based on covariance risk and expected returns
+    risk_adjustment_factor = 0.1  # Can be tuned based on risk appetite
+    for i, asset in enumerate(asset_data["Asset Class"]):
+        asset_risk = asset_class_cov.iloc[i, i]  # Variance of asset
+        asset_return = asset_class_mu.iloc[i, 0]  # Expected return
+        
+        # Modify weight limits based on risk-return characteristics
+        if asset in base_constraints:
+            adj_limit = base_constraints[asset][liquidity_condition] * (1 + risk_adjustment_factor * (asset_return / asset_risk))
+            constraints.append(["FALSE", "Assets", "", asset, "<=", min(adj_limit, 1.0), "", "", "", ""])
+    
+    # Liquidity constraints
+    liquidity_limits = {'low': 0.6, 'high': 0.08}
+    constraints.append(["FALSE", "Classes", "Liquidity", "Low", ">=", liquidity_limits[liquidity_condition], "", "", "", ""])
+    
+    # Minimum allocation per asset
+    min_allocation = {'low': 0.02, 'high': 0.01}
+    constraints.append(["FALSE", "All Assets", "", "", ">=", min_allocation[liquidity_condition], "", "", "", ""])
+    
+    # Special case: Ensuring a minimum allocation to a specific asset (e.g., TLT for Fixed Income)
     constraints.append(["TRUE", "Each asset in a class", "Class 1", "Equity", ">=", "", "Assets", "", "TLT", 0.4])
     
-    # Convert constraints to DataFrame
+    # Convert to DataFrame
     columns = ["Disabled", "Type", "Set", "Position", "Sign", "Weight", "Type Relative", "Relative Set", "Relative", "Factor"]
-    constraints_df = pd.DataFrame(constraints, columns=columns)
-    constraints_df.to_csv("CMA - Constraints-Lip.csv", index=False)
+    asset_class_constraints = pd.DataFrame(constraints, columns=columns)
 
     asset_class_names = pd.read_csv(r'CMA - Asset Class.csv')
     asset_class_names['Asset Class'] = asset_class_names['Asset Class'].str.strip()
-    asset_class_cov = pd.read_csv(r'CMA - Cov.csv', header=None)
-    asset_class_mu = pd.read_csv(r'CMA - Mu.csv', header=None)
+    
     asset_class_names = asset_class_names.drop(columns='ETF Ticker').sort_values('Asset Class')
-    asset_class_constraints = pd.read_csv(r'CMA - Constraints-Liq.csv').fillna('')
 
     asset_class = sorted(asset_class_names['Asset Class'])
     returns = pd.DataFrame([[0]*len(asset_class)]*2, columns=asset_class)
@@ -196,14 +232,15 @@ def portfolio_optimization(stocks: str, bonds: str, real_estate: str) -> str:
     port.solver = 'ECOS'
     w = port.optimization(model=model, rm=rm, obj=obj, rf=riskfree_rate, l=risk_aversion)
     frontier = port.efficient_frontier(model=model, rm=rm, points=50)
-
+    ax = rf.plot_pie(w=w, title='Sharpe Mean Variance', others=0.05, nrow=25, cmap = "tab20", height=6, width=10, ax=None)
+    plt.show()
     return json.dumps({
         "weights": w,
         "frontier": frontier,
     }, indent=2)
 
-# portfolio_tool = Tool(
-#     name="portfolio_optimization",
-#     description="Build an investment portfolio based on client parameters",
-#     func=portfolio_optimization
-# )
+portfolio_tool = Tool(
+    name="portfolio_optimization",
+    description="Build an investment portfolio based on client parameters",
+    func=portfolio_optimization
+)

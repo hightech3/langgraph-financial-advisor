@@ -138,7 +138,6 @@ def financial_advice_workflow():
     # Define edges
     workflow.add_node("financial_advisor", financial_advisor_tool)
     workflow.set_entry_point("financial_advisor")
-    workflow.add_edge("financial_advisor", END)
 
     # Compile workflow
     return workflow.compile(name="financial_advisor_agent")
@@ -150,7 +149,6 @@ def portfoliio_management_workflow():
     # Define edges
     workflow.add_node("portfolio_manager", portfolio_manager_tool)
     workflow.set_entry_point("portfolio_manager")
-    workflow.add_edge("portfolio_manager", END)
 
     # Compile workflow
     return workflow.compile(name="portfolio_manager_agent")
@@ -179,17 +177,15 @@ def run_financial_advisor(query: str):
     """
     financial_advisor_app = workflow.compile()
     messages = [HumanMessage(content=query)]
-    result = financial_advisor_app.stream({
+    result = financial_advisor_app.invoke({
         "messages": messages,
-    }, stream_mode="value")
+    })
+    messages = result.get("messages", [])
+    for msg in messages:
+        if isinstance(msg, AIMessage) and isinstance(msg.content, list):
+            for item in msg.content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    yield item["text"]
 
-    for s in result:
-        message = s["messages"][-1]
-        print("content ============> ", message.content)
-        yield message.content
-        # if isinstance(message, tuple):
-        #     print(message)
-        #     yield message
-        # else:
-        #     message.pretty_print()
-        #     yield message.content
+        elif isinstance(msg, AIMessage):
+            yield msg.content
