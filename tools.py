@@ -1,14 +1,13 @@
 import json
 from typing import List
-from langchain_core.tools import tool, Tool
+from langchain_core.tools import Tool
 
 import math
-import numpy as np
 import pandas as pd
 import riskfolio as rf
 import matplotlib.pyplot as plt
 
-from state import State, AgentState
+from state import AgentState
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, AIMessage
 
