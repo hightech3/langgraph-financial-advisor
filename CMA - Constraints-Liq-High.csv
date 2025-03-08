@@ -1,0 +1,8 @@
+Disabled,Type,Set,Position,Sign,Weight,Type Relative,Relative Set,Relative,Factor
+FALSE,Classes,Class 1,Equity,<=,0.9,,,,
+FALSE,Classes,Class 1,Fixed Income,<=,0.6,,,,
+FALSE,Assets,,International Developed,<=,0.05,,,,
+FALSE,Assets,,International Emerging Market,<=,0.05,,,,
+FALSE,Classes,Liquidity,Low,<=,0.08,,,,
+FALSE,All Assets,,,>=,0.01,,,,
+TRUE,Each asset in a class,Class 1,Equity,>=,,Assets,,TLT,0.4

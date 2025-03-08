@@ -233,12 +233,12 @@ def portfolio_optimization(liquidity_level: str, user_allocation: dict) -> str:
     # Convert DataFrames to dictionaries
     w_dict = w.to_dict()
     w_result = [{'name': key, 'value': value} for key, value in w_dict['weights'].items()]
-    print("w_dict==========>", w_result)
     frontier_dict = frontier.to_dict()
+    # print("w_dict==========>", frontier_dict)
 
     return json.dumps({
         "weights": w_result,
-        # "frontier": frontier_dict
+        "frontier": frontier_dict
     })
 
 def dict_to_markdown(data):
