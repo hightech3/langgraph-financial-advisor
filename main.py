@@ -1,26 +1,36 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse, Response
-from pydantic import BaseModel
+import os
+from flask import Flask, request, Response, jsonify
+from flask_cors import CORS
 from agent import run_financial_advisor
 
-class FinancialRequest(BaseModel):
-    query: str
+app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-
-@app.get("/api")
+@app.route("/api", methods=["GET"])
 def test():
-    return {"message": "Hello, World!"}
+    return jsonify({"message": "Hello, World!"})
 
-@app.post("/api/chat/financial-advice")
-def get_financial_advice(data: FinancialRequest):
-
-    result = run_financial_advisor(data.query)
+@app.route("/api/chat/financial-advice", methods=["POST"])
+def get_financial_advice():
+    data = request.json
+    query = data.get("query", "")
     
-    return StreamingResponse(content=result, media_type="text/markdown")
+    result = run_financial_advisor(query)
+    
+    return Response(result, mimetype="text/markdown")
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    # Fix for Windows socket error
+    import sys
+    if sys.platform == 'win32':
+        import os
+        # Set Flask environment variables
+        os.environ['FLASK_APP'] = 'main.py'
+        os.environ['FLASK_ENV'] = 'development'
+        # Use the Flask CLI to run the app
+        from flask.cli import main
+        sys.argv = ['flask', 'run', '--host=127.0.0.1', '--port=8080']
+        main()
+    else:
+        # For non-Windows platforms, use the regular method
+        app.run(host="0.0.0.0", port=8080, debug=True)
