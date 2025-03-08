@@ -21,6 +21,6 @@ def get_financial_advice(data: FinancialRequest):
     
     return StreamingResponse(content=result, media_type="text/markdown")
 
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="0.0.0.0", port=8080)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
