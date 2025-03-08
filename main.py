@@ -15,9 +15,15 @@ def get_financial_advice():
     data = request.json
     query = data.get("query", "")
     
-    result = run_financial_advisor(query)
+    def generate():
+        for chunk in run_financial_advisor(query):
+            yield chunk
     
-    return Response(result, mimetype="text/markdown")
+    return Response(generate(), mimetype="text/markdown", headers={
+        'X-Accel-Buffering': 'no',  # Disable Nginx buffering
+        'Cache-Control': 'no-cache',
+        'Content-Type': 'text/markdown'
+    })
 
 if __name__ == "__main__":
     # Fix for Windows socket error
