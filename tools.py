@@ -162,7 +162,7 @@ asset_class_names = pd.read_csv(r'CMA - Asset Class.csv')
 asset_class_names['Asset Class'] = asset_class_names['Asset Class'].str.strip()
 asset_class_cov = pd.read_csv(r'CMA - Cov.csv', header=None)
 asset_class_mu = pd.read_csv(r'CMA - Mu.csv', header=None)
-
+asset_class_constraints = pd.read_csv(r'CMA - Constraints-Liq-High.csv').fillna('')
 asset_class_names = asset_class_names.drop(columns='ETF Ticker').sort_values('Asset Class')
 
 asset_class = sorted(asset_class_names['Asset Class'])
@@ -209,8 +209,8 @@ def portfolio_optimization(liquidity_level: str, user_allocation: dict) -> str:
     # Relative Constraint: Each equity asset should be at least 40% of TLT allocation
     constraints.append(["TRUE", "Each asset in a class", "Class 1", "Equity", ">=", "", "Assets", "", "TLT", 0.4])
 
-    asset_class_constraints = pd.DataFrame(constraints, columns=["Disabled", "Type", "Set", "Position", "Sign", "Weight", "Type Relative", "Relative Set", "Relative", "Factor"]).fillna('')
-    print("constraints==========>", asset_class_constraints)
+    # asset_class_constraints = pd.DataFrame(constraints, columns=["Disabled", "Type", "Set", "Position", "Sign", "Weight", "Type Relative", "Relative Set", "Relative", "Factor"]).fillna('')
+    # print("constraints==========>", asset_class_constraints)
     A, B = rf.assets_constraints(asset_class_constraints, asset_class_names)
     port.ainequality = A
     port.binequality = B
@@ -232,9 +232,14 @@ def portfolio_optimization(liquidity_level: str, user_allocation: dict) -> str:
     
     # Convert DataFrames to dictionaries
     w_dict = w.to_dict()
+    w_result = [{'name': key, 'value': value} for key, value in w_dict['weights'].items()]
+    print("w_dict==========>", w_result)
     frontier_dict = frontier.to_dict()
 
-    return dict_to_markdown(w_dict)
+    return json.dumps({
+        "weights": w_result,
+        # "frontier": frontier_dict
+    })
 
 def dict_to_markdown(data):
     table_header = "| Category | Weights |\n| --- | --- |\n"
