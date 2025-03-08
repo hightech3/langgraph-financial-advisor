@@ -22,114 +22,12 @@ api_key = os.getenv("API_KEY")
 system_prompt = (
         "You are a team supervisor managing a financial advisor and a portfolio manager. "
         "For finanaical advice, use financial_advisor. "
+        "Don't direct to portfolio manager about the datas for financial advice."
         "For portfolio management, use portfolio_manager. "
     )
 
-# system_prompt = (
-#     "You are a supervisor tasked with managing a conversation between the"
-#     f" following workers: {members}. Given the following user request,"
-#     " respond with the worker to act next. Each worker will perform a"
-#     " task and respond with their results and status. When finished,"
-#     " respond with FINISH."
-# )
-
-# class Router(TypedDict):
-#     next: Literal["financial_advisor", "portfolio_manager", "FINISH"]
 
 llm = initialize_llm(api_key=api_key)
-
-
-
-# def supervisor_node(state: State) -> Command[Literal["financial_advisor", "portfolio_manager", "__end__"]]:
-#     messages = [
-#         {"role": "system", "content": system_prompt},
-#     ] + state["messages"]
-#     response = llm.with_structured_output(Router).invoke(messages)
-#     print("✨response.next:",  response["next"])
-#     goto = response["next"]
-#     if goto == "FINISH":
-#         goto = END
-
-#     return Command(goto=goto, update={"next": goto})
-
-# financial_advisor_agent = create_react_agent(
-#     llm,
-#     tools=[build_portfolio],
-#     name="financial_advisor",
-#     state_schema=AgentState,
-# )
-
-# @entrypoint()
-# def financial_advisor_agent(state: State):
-#     messages = state["messages"]
-# #     # Initialize the LLM with the provided API key
-#     llm = initialize_llm(api_key)
-#     system_content = ("You are a helpful financial advisor."
-#                       "You help clients build investment portfolios based on their financial goals, risk tolerance, and investment horizon."
-#                       "Use the build_portfolio function to generate recommendations."
-#                       "Do not show python code in your reply."
-#                       "Don't make disclaimer!" )
-#     filtered_messages = [msg for msg in messages if hasattr(msg, "content") and msg.content.strip()]
-#     filtered_messages = [{
-#         "role": "user",
-#         "content": system_content
-#     }]
-#     # if len(filtered_messages) == 1:
-#     #     filtered_messages.append(HumanMessage(content="Hello, I need financial advice."))
-#     # if sum(1 for msg in filtered_messages if isinstance(msg, AIMessage)) >= 5:
-#     #     return {"messages": filtered_messages, "next": END}
-#     response = llm.invoke(filtered_messages)
-
-#     print("🚀financial_advisor_tool", response)
-#     filtered_messages.append({
-#         "role": "system",
-#         "content": response.content
-#     })
-#     message = add_messages(state["messages"], filtered_messages)
-#     if hasattr(response, "tool_calls") and response.tool_calls:
-#         for tool_call in response.tool_calls:
-#             tool_name = tool_call.function.name
-#             tool_arguments = json.loads(tool_call.function.arguments)
-
-#             # Call the original build_portfolio tool
-#             tool_result = build_portfolio(**tool_arguments)
-#             filtered_messages.append({"role": "user", "content": f"Tool Result: {tool_result}"})
-#             message = add_messages(state["messages"], filtered_messages)
-#             return {"messages": message}
-
-#     return {"messages": message}
-
-# def financial_advisor_node(state: State) -> Command[Literal["supervisor"]]:
-#     print("🚀financial_advisor_node")
-#     result = financial_advisor_agent.invoke(state)
-#     print("✨result:", result)
-#     return Command(
-#         update={
-#             "messages": [
-#                 AIMessage(content=result["messages"][-1].content, name="financial_advisor")
-#             ]
-#         },
-#         goto="supervisor",
-#     )
-
-# portfolio_management_agent = create_react_agent(
-#     llm,
-#     tools=[portfolio_optimization],
-#     name="portfolio_manager",
-#     state_schema=AgentState,
-# )
-
-# def portfolio_management_node(state: State) -> Command[Literal["supervisor"]]:
-#     result = portfolio_management_agent.invoke(state)
-#     return Command(
-#         update={
-#             "messages": [
-#                 HumanMessage(content=result["messages"][-1].content, name="portfolio_manager")
-#             ]
-#         },
-#         goto="supervisor",
-#     )
-
 
 def financial_advice_workflow():
     """Create the workflow with the provided API key."""
