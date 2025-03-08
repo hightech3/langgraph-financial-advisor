@@ -12,9 +12,9 @@
         "dest": "server.py"
       }
     ],
-    "functions": [
-    "server.py": {
-      "runtime": "edge"
+    "functions": {
+        "server.py": {
+          "runtime": "edge"
+        }
     }
-    ]
   }
