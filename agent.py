@@ -8,6 +8,10 @@ from tools import initialize_llm, financial_advisor_tool, portfolio_manager_tool
 
 from dotenv import load_dotenv
 import os
+import re
+import sys         
+import time
+import json
 load_dotenv()
 
 api_key = os.getenv("API_KEY")
@@ -74,10 +78,34 @@ def run_financial_advisor(query: str):
     })
     messages = result.get("messages", [])
     for msg in messages:
-        if isinstance(msg, AIMessage) and isinstance(msg.content, list):
-            for item in msg.content:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    yield item["text"]
+        if msg.name == "graph_data":
+            json_data = json.loads(msg.content)
+            weights = json_data["weights"]
+            frontier = json_data["frontier"]
+            for weight in weights:
+                time.sleep(0.01)
+                yield f"w: {json.dumps(weight)}"
+            for key, value in frontier.items():
+                time.sleep(0.01)
+                yield f"f: {key}:{json.dumps(value)}"
+        else:
+            if isinstance(msg, AIMessage) and isinstance(msg.content, list):
+                for item in msg.content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text = item["text"]
+                        words = re.findall(r'\S+|\s+', text)
+                        for word in words:
+                            sys.stdout.write(word)
+                            sys.stdout.flush()
+                            time.sleep(0.01)
+                            yield word
 
-        elif isinstance(msg, AIMessage):
-            yield msg.content
+            elif isinstance(msg, AIMessage):
+                text = msg.content
+                words = re.findall(r'\S+|\s+', text)
+                for word in words:
+                    sys.stdout.write(word)
+                    sys.stdout.flush()
+                    time.sleep(0.01)
+                    yield word
+

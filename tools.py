@@ -144,7 +144,7 @@ def portfolio_manager_tool(state: AgentState):
             if tool_name == "portfolio_optimization":
                 tool_result = portfolio_optimization(liquidity_level, user_allocation=tool_arguments)
                 # print("tool_result", tool_result)
-                filtered_messages.append(AIMessage(content=f"\n\n{tool_result}\n"))
+                filtered_messages.append(AIMessage(content=tool_result, name="graph_data"))
             return {"messages": filtered_messages}
     return {"messages": filtered_messages}  
 
