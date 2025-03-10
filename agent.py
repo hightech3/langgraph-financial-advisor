@@ -22,7 +22,6 @@ system_prompt = (
         "For finanaical advice, use financial_advisor. "
         "Don't direct to portfolio manager about the datas for financial advice."
         "For general prompt, pleaes answer your self. Don't ask to agents"
-        "Please direct to financial advice for portfolio allocation. "
         "For portfolio management, use portfolio_manager. "
     )
 
