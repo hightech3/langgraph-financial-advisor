@@ -123,6 +123,7 @@ def portfolio_manager_tool(state: AgentState):
                       "You help clients can optimize their portfolios based on allocations."
                       "Use the portfolio_optimization function to optimize portfolio."
                       "Do not show python code in your reply."
+                      "For general prompt what doesn't have any percentage please ask user to provide percentage."
                       "Don't make disclaimer!" )
     prompt = """
         ### Asset Class Data:
