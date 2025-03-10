@@ -75,8 +75,8 @@ def financial_advisor_tool(state: AgentState) -> AgentState:
         filtered_messages.append(HumanMessage(content="Hello, I need financial advice."))
     # if sum(1 for msg in filtered_messages if isinstance(msg, AIMessage)) >= 5:
     #     return {"messages": filtered_messages, "next": END}
-    model_with_tools = llm.bind_tools([build_portfolio])
-    response = model_with_tools.invoke(filtered_messages)
+    # model_with_tools = llm.bind_tools([build_portfolio])
+    response = llm.invoke(filtered_messages)
     # print("🚀financial_advisor_tool", response)  
 
     filtered_messages.append(response)
@@ -124,10 +124,71 @@ def portfolio_manager_tool(state: AgentState):
                       "Use the portfolio_optimization function to optimize portfolio."
                       "Do not show python code in your reply."
                       "Don't make disclaimer!" )
+    prompt = """
+        ### Asset Class Data:
+        Asset Class,ETF Ticker,Class 1,Liquidity
+        Opportunistic Income - Hedge Fund,CTA,Opportunistic Income,Low
+        Alternative Investment - Commodities ,GLD,Alternative Investment,Low
+        Opportunistic Income - Structured Credit,SCIO,Opportunistic Income,Low
+        Opportunistic Income - High Yield Bond,HYG,Opportunistic Income,Low
+        Alternative Investment - Crypto,IBIT,Alternative Investment,Medium
+        International Emerging Market,IEMG,Equity,High
+        US Mid/Small Cap,IWM,Equity,High
+        Real Estate - US,IYR,Real Estate,Low
+        US IG Corp Bond,LQD,Fixed Income,Medium
+        US Muni Bond,MUB,Fixed Income,Medium
+        Opportunistic Income - Private Equity,PSP,Opportunistic Income,Very Low
+        Real Estate - Global,REET,Real Estate,Low
+        US Large Cap,SPY,Equity,High
+        US Government Bond,TLT,Fixed Income,High
+        Money Market,VMFXX,Fixed Income,High
+        International Developed,VGK,Equity,Medium
 
+        ### Portfolio Allocation Instructions:
+        Please provide the **allocation percentages** for your portfolio in the following format:
+        - **Equity**: (e.g., 40%)
+        - **Bond**: (e.g., 60%)
+
+        Once you provide the allocation, the following tasks will be performed:
+        1. The portfolio will be allocated based on the percentages you provide.
+        2. **Asset Constraints** will be generated based on the allocation.
+
+        ### Tasks:
+        1. **Generate Asset Constraints** for the provided allocation.
+            - Ensure the equity allocation does not exceed the given percentage.
+            - Similarly, the bond allocation should not exceed the provided bond percentage.
+            - Apply constraints to respect liquidity levels (e.g., Low Liquidity assets should not exceed 8% of the portfolio).
+            - Provide a **detailed distribution** showing what is included in the equity and bond allocations.
+            - All ten columns of the asset constraints should be filled out.
+            - If there is no value for columns, use an empty string.
+            - Please add header of asset constraints to the top of the table.
+            - If there is need to add TRUE for disabled column, please add it.
+            - Don't put ETF Ticker for position column of constraints table.
+            - And don't put asset class what is not in the asset class data.
+
+
+        2. Provide the **Asset Constraints** in **Dictionary format**. An example constraint structure is as follows:
+            ```Dictionary
+            Disabled,Type,Set,Position,Sign,Weight,Type Relative,Relative Set,Relative,Factor
+            FALSE,Classes,Class 1,Equity,<=,0.9,,,,
+            FALSE,Classes,Class 1,Fixed Income,<=,0.6,,,,
+            FALSE,Assets,,International Developed,<=,0.05,,,,
+            FALSE,Assets,,International Emerging Market,<=,0.05,,,,
+            FALSE,Classes,Liquidity,Low,<=,0.08,,,,
+            FALSE,All Assets,,,>=,0.01,,,,
+            TRUE,Each asset in a class,Class 1,Equity,>=,,Assets,,TLT,0.4
+            ```
+
+        ### Example:
+        If you provide an allocation such as:
+        - **Equity**: 40%
+        - **Bond**: 60%
+
+        The system will distribute your portfolio and generate asset constraints ensuring the equity class does not exceed 40%, and the bond class does not exceed 60%. The constraints will also respect other rules such as liquidity and asset-specific requirements.
+        """
     # Extract last user message (expected to contain allocation)
     filtered_messages = messages
-    filtered_messages = [HumanMessage(content=system_content)] + filtered_messages
+    filtered_messages = [HumanMessage(content=system_content)] + [HumanMessage(content=prompt)] + filtered_messages
     if len(filtered_messages) == 1:
         filtered_messages.append(HumanMessage(content="Hello, I have to optimize my financial portfolio with given allocations."))
     # Parse user-provided allocation (Expected format: "Bonds: 50, Stocks: 30, Real Estate: 20")
@@ -139,78 +200,51 @@ def portfolio_manager_tool(state: AgentState):
         for tool_call in response.tool_calls:
             tool_name = tool_call.get('name')
             tool_arguments = tool_call.get('args', [])
-            liquidity_level = "low"
+            asset_constraint_arg=tool_arguments["asset_constraint"]
+            # print("asset_constraint_arg", asset_constraint_arg)
             # Call the original build_portfolio tool
             if tool_name == "portfolio_optimization":
-                tool_result = portfolio_optimization(liquidity_level, user_allocation=tool_arguments)
+                tool_result = portfolio_optimization(asset_constraint_arg)
                 # print("tool_result", tool_result)
                 filtered_messages.append(AIMessage(content=tool_result, name="graph_data"))
             return {"messages": filtered_messages}
-    return {"messages": filtered_messages}  
-
-# Asset Data (simplified for reference)
-assets = ["CTA", "GLD", "SCIO", "HYG", "IBIT", "IEMG", "IWM", "IYR", "LQD", "MUB", "PSP", "REET", "SPY", "TLT", "VMFXX", "VGK"]
-categories = ["Opportunistic Income", "Alternative Investment", "Opportunistic Income", "Opportunistic Income",
-            "Alternative Investment", "Equity", "Equity", "Real Estate", "Fixed Income", "Fixed Income",
-            "Opportunistic Income", "Real Estate", "Equity", "Fixed Income", "Fixed Income", "Equity"]
-liquidity = ["Low", "Low", "Low", "Low", "Medium", "High", "High", "Low", "Medium", "Medium", "Very Low",
-            "Low", "High", "High", "High", "Medium"]
-asset_df = pd.DataFrame({"Asset": assets, "Category": categories, "Liquidity": liquidity})
-
-asset_class_names = pd.read_csv(r'CMA - Asset Class.csv')
-asset_class_names['Asset Class'] = asset_class_names['Asset Class'].str.strip()
-asset_class_cov = pd.read_csv(r'CMA - Cov.csv', header=None)
-asset_class_mu = pd.read_csv(r'CMA - Mu.csv', header=None)
-asset_class_constraints = pd.read_csv(r'CMA - Constraints-Liq-High.csv').fillna('')
-asset_class_names = asset_class_names.drop(columns='ETF Ticker').sort_values('Asset Class')
-
-asset_class = sorted(asset_class_names['Asset Class'])
-returns = pd.DataFrame([[0]*len(asset_class)]*2, columns=asset_class)
-port = rf.Portfolio(returns=returns)
-port.mu = asset_class_mu[0].values
-port.cov = asset_class_cov.values
+    return {"messages": filtered_messages} 
 
 # @tool
-def portfolio_optimization(liquidity_level: str, user_allocation: dict) -> str:
+def portfolio_optimization(asset_constraint: list) -> str:
     """
-    Generate portfolio constraints based on asset class, allocation strategy, liquidity levels, covariance matrix, and expected returns.
-    And optimize the portfolio based on the constraints by using riskfolio.
-    
-    Args:
-        liquidity_level: whether the liquidity level of portfolio allocation is high or low
-        user_allocation: customized user allocations for portfolio management
+    Generate CMA-Constraints based on user input and asset class data.
 
-    Returns:
-        str: A JSON string representing the optimized portfolio data.
-
+    :param asset_constraint: List containing asset allocation constraints.
+    :return: Optimized portfolio weights and efficient frontier data.
     """
-    print("🚀financial_advisor_tool", liquidity_level)
-    constraints = []
+    # CSV file name
+    csv_filename = "CMA - Constraints-Liq-High.csv"
+    df = pd.DataFrame(asset_constraint)
+    new_header = ['Disabled', 'Type', 'Set', 'Position', 'Sign', 'Weight', 'Type Relative', 'Relative Set', 'Relative', 'Factor']
+    # df.columns = df.iloc[0]  # Set the second row as the header
+    df = df.drop(0)  # Drop the first two rows (index 0 and 1)
+    df.to_csv(csv_filename, index=False, header=new_header)
+    asset_class_names = pd.read_csv(r'CMA - Asset Class.csv')
+    asset_class_names['Asset Class'] = asset_class_names['Asset Class'].str.strip()
+    asset_class_cov = pd.read_csv(r'CMA - Cov.csv', header=None)
+    asset_class_mu = pd.read_csv(r'CMA - Mu.csv', header=None)
+    asset_class_names = asset_class_names.drop(columns='ETF Ticker').sort_values('Asset Class')
+
+    asset_class = sorted(asset_class_names['Asset Class'])
+    returns = pd.DataFrame([[0]*len(asset_class)]*2, columns=asset_class)
+    port = rf.Portfolio(returns=returns)
+    port.mu = asset_class_mu[0].values
+    port.cov = asset_class_cov.values
     
-    # Apply user-defined category constraints
-    for category, weight in user_allocation.items():
-        constraints.append(["FALSE", "Classes", "Class 1", category, "<=", weight])
+    
+    asset_class_constraints = pd.read_csv(r'CMA - Constraints-Liq-High.csv').fillna('')
 
-    # Asset-Specific Constraints (Fixed Rules)
-    constraints.append(["FALSE", "Assets", "", "Cryptocurrency", "<=", 0.05])
-    constraints.append(["FALSE", "Assets", "", "International Developed", "<=", 0.05])
-    constraints.append(["FALSE", "Assets", "", "International Emerging Market", "<=", 0.05])
-
-    # Liquidity Constraints (Dynamic)
-    if liquidity_level == "low":
-        constraints.append(["FALSE", "Classes", "Liquidity", "Low", ">=", 0.6])  # Ensure at least 60% Low Liquidity
-    else:
-        constraints.append(["FALSE", "Classes", "Liquidity", "Low", "<=", 0.08])  # Limit Low Liquidity to 8%
-
-    # Minimum allocation per asset
-    constraints.append(["FALSE", "All Assets", "", "", ">=", 0.02 if liquidity_level == "low" else 0.01])
-
-    # Relative Constraint: Each equity asset should be at least 40% of TLT allocation
-    constraints.append(["TRUE", "Each asset in a class", "Class 1", "Equity", ">=", "", "Assets", "", "TLT", 0.4])
-
-    # asset_class_constraints = pd.DataFrame(constraints, columns=["Disabled", "Type", "Set", "Position", "Sign", "Weight", "Type Relative", "Relative Set", "Relative", "Factor"]).fillna('')
     # print("constraints==========>", asset_class_constraints)
+    # asset_class_constraints = pd.DataFrame(asset_constraint)
+    print(asset_class_constraints)
     A, B = rf.assets_constraints(asset_class_constraints, asset_class_names)
+    
     port.ainequality = A
     port.binequality = B
     port.solver = 'ECOS'
